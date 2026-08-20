@@ -1,0 +1,82 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Setup Java JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Temporarily move API routes
+        run: |
+          if [ -d "src/app/api" ]; then
+            mv src/app/api /tmp/app-api-backup
+          fi
+
+      - name: Build Next.js static export
+        run: npm run build:apk
+        env:
+          BUILD_TARGET: apk
+          SKIP_ENV_VALIDATION: 'true'
+
+      - name: Restore API routes
+        if: always()
+        run: |
+          if [ -d "/tmp/app-api-backup" ]; then
+            mkdir -p src/app
+            mv /tmp/app-api-backup src/app/api
+          fi
+
+      - name: Verify static export
+        run: |
+          echo "Checking Next.js static export..."
+          test -f out/index.html
+          echo "out/index.html found successfully"
+          ls -lah out | head -30
+
+      - name: Capacitor sync
+        run: npx cap sync android
+
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      - name: Build Android APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Thuso-Android-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
