@@ -1,18 +1,6 @@
 import type { NextConfig } from "next";
 
-const isApkBuild = process.env.BUILD_TARGET === "apk";
-
 const nextConfig: NextConfig = {
-  output: isApkBuild ? "export" : "standalone",
-
-  ...(isApkBuild
-    ? {
-        images: {
-          unoptimized: true,
-        },
-      }
-    : {}),
-
   typescript: {
     ignoreBuildErrors: true,
   },
